@@ -100,7 +100,6 @@ def merge_intervals(masked_intervals, outbasenm):
             if len(txtfile):
                 txtfiles.append(txtfile)
     if len(txtfiles)>1:
-        print "printing text files for file %s. "%outbasenm
         clipbinsfile = np.concatenate((txtfiles), axis=0)
     else:
         clipbinsfile = np.asarray(txtfiles[0])
@@ -113,7 +112,6 @@ def merge_intervals(masked_intervals, outbasenm):
             if (clipbinsfile[i+1][0]==clipbinsfile[i][0]) and (clipbinsfile[i+1][1]==clipbinsfile[i+1][1]):
                 indices.append(i)
         clipbinsfile = np.delete(clipbinsfile, np.asarray(indices), axis=0)
-        print clipbinsfile
         for i in range(len(clipbinsfile)):
             count += clipbinsfile[i][1]-clipbinsfile[i][0]
         print 'number of masked intervals: %s'%len(clipbinsfile)
@@ -219,8 +217,8 @@ def main():
     old_zap_chans, old_zap_ints, old_zap_chans_per_int = read_mask(old_mask)
     
     # Now make the timeseries only containing each of the radar signals individually.   
-    #make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
-    #                args.nchannels, outbasenm)
+    make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
+                    args.nchannels, outbasenm)
     start = 0
     ints_with_rfi_to_mask = []
     mask_zap_chans_per_int = []
