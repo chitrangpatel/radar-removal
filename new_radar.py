@@ -4,7 +4,6 @@ import numpy as np
 import argparse
 import sys
 import infodata
-from time import strftime
 from pypulsar.formats import psrfits
 from pypulsar.formats import filterbank
 import find_radar_mod
@@ -66,8 +65,7 @@ def make_timeseries(data, old_mask, frequenciestomask, bandwidth, nchannels, out
         subprocess.call(['cp', '%s_rfifind.inf'%outbasenm, '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
         subprocess.call(['cp', '%s_rfifind.rfi'%outbasenm, '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
         subprocess.call(['cp', '%s_rfifind.stats'%outbasenm, '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['prepdata', '-nobary', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]),
-                          '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '%s.fits'%outbasenm])
+        subprocess.call(['prepdata', '-nobary', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '%s.fits'%outbasenm])
         subprocess.call(['rm', '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
         subprocess.call(['rm', '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
         subprocess.call(['rm', '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
@@ -92,21 +90,30 @@ def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, thr
 
 def merge_intervals(masked_intervals, outbasenm):
     txtfiles = []
-    clipbinsfiles = glob.glob("*radar_samples.txt")
+    clipbinsfiles = glob.glob("%s*radar_samples.txt"%outbasenm)
     if clipbinsfiles:
         for ii in range(len(clipbinsfiles)):
             #txtfiles.append(np.loadtxt(outbasenm+'%s_radar_samples.txt'%frequenciestomask[ii], delimiter = ':'))
-            txtfiles.append(np.loadtxt(clipbinsfiles[ii], delimiter = ':'))
-    clipbinsfile = np.concatenate((txtfiles), axis=0)
+            txtfile = np.loadtxt(clipbinsfiles[ii], delimiter = ':')
+            txtfile = np.atleast_2d(txtfile)
+            print np.shape(txtfile)
+            if len(txtfile):
+                txtfiles.append(txtfile)
+    if len(txtfiles)>1:
+        print "printing text files for file %s. "%outbasenm
+        clipbinsfile = np.concatenate((txtfiles), axis=0)
+    else:
+        clipbinsfile = np.asarray(txtfiles[0])
     count = 0
     if len(clipbinsfile):
         order = np.lexsort(clipbinsfile.T)
         clipbinsfile = clipbinsfile[order]
         indices=[]
         for i in range(len(clipbinsfile)-1):
-            if (clipbinsfile[i+1][0]==clipbinsfile[i][0]) and (clipbinsfile[i+1][1]==clipbinsfile[i][1]):
+            if (clipbinsfile[i+1][0]==clipbinsfile[i][0]) and (clipbinsfile[i+1][1]==clipbinsfile[i+1][1]):
                 indices.append(i)
         clipbinsfile = np.delete(clipbinsfile, np.asarray(indices), axis=0)
+        print clipbinsfile
         for i in range(len(clipbinsfile)):
             count += clipbinsfile[i][1]-clipbinsfile[i][0]
         print 'number of masked intervals: %s'%len(clipbinsfile)
@@ -182,7 +189,6 @@ def write_mask(old_mask, new_zap_chans, new_zap_ints, new_zap_chans_per_int,
 
 def main():
     fn = args.infn
-    print strftime("%Y-%m-%d %H:%M:%S")
     # Read in the raw data.(Probably not necessary anymore. Look into this)
     if fn.endswith(".fil"):
         filetype = "filterbank"
@@ -213,8 +219,8 @@ def main():
     old_zap_chans, old_zap_ints, old_zap_chans_per_int = read_mask(old_mask)
     
     # Now make the timeseries only containing each of the radar signals individually.   
-    make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
-                    args.nchannels, outbasenm)
+    #make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
+    #                args.nchannels, outbasenm)
     start = 0
     ints_with_rfi_to_mask = []
     mask_zap_chans_per_int = []
@@ -223,7 +229,6 @@ def main():
                                       args.frequenciestomask, args.bandwidth, args.threshold, 
                                       args.winlen, args.nchannels, start, old_mask, outbasenm)
     merge_intervals(masked_intervals, outbasenm)
-    print strftime("%Y-%m-%d %H:%M:%S")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Find radar in PALFA data.")
