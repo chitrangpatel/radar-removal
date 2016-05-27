@@ -36,6 +36,7 @@ def chans_for_timeseries(channelstomask, nchannels):
     """
     Outputs an array of channels not containing the radar. 
     These channels will be masked out.
+    No longer used here.
     """
     nchans = range(0, nchannels)
     for chan in channelstomask:
@@ -46,6 +47,7 @@ def write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm):
     """
     Writes a mask file to get the timeseries of only the channels containing the radar.
     This way we can extract narrow band radar signals which are not very bright.
+    No longer used here.
     """
     new_zap_ints = np.array(())
     new_zap_chans_per_int = np.array(())
@@ -59,7 +61,7 @@ def make_rfifind_mask(lo_chan, lo_rad_chan, hi_chan, hi_rad_chan, frequency_to_m
     """
     subprocess.call(['rfifind', '-chanfrac', '1.0', '-intfrac', '1.0', '-zapchan', '%i:%i,%i:%i'%(lo_chan,lo_rad_chan,hi_rad_chan,hi_chan), '-o', '%s%s_new'%(outbasenm,frequency_to_mask), '%s.fits'%outbasenm])
          
-def make_timeseries(data, old_mask, frequenciestomask, bandwidth, nchannels, outbasenm):
+def make_timeseries(data, frequenciestomask, bandwidth, nchannels, outbasenm):
     """
     Generates a timeseries of specific channels using Presto's prepdata.
     """
@@ -69,20 +71,9 @@ def make_timeseries(data, old_mask, frequenciestomask, bandwidth, nchannels, out
                          float(frequenciestomask[ii]), float(bandwidth[ii]))
         make_rfifind_mask(0, np.min(channelstomask)-1, nchannels, np.max(channelstomask)+1, frequenciestomask[ii], outbasenm)
         new_zap_chans = chans_for_timeseries(channelstomask, nchannels) 
-        #write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm+frequenciestomask[ii])
-        #subprocess.call(['cp', '%s_rfifind.bytemask'%outbasenm, '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['cp', '%s_rfifind.ps'%outbasenm, '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['cp', '%s_rfifind.inf'%outbasenm, '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['cp', '%s_rfifind.rfi'%outbasenm, '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['cp', '%s_rfifind.stats'%outbasenm, '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
         print "generating time series: %s: %s"%(frequenciestomask[ii], outbasenm)
         subprocess.call(['prepdata', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '-psrfits', '%s.fits'%outbasenm])
         print "time series generated : %s: %s"%(frequenciestomask[ii], outbasenm)
-        #subprocess.call(['rm', '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['rm', '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['rm', '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['rm', '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
-        #subprocess.call(['rm', '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
     
 def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, threshold, 
                     winlen, nchannels, start, outbasenm):
@@ -107,7 +98,6 @@ def merge_intervals(masked_intervals, outbasenm):
     clipbinsfiles = glob.glob("%s*radar_samples.txt"%outbasenm)
     if clipbinsfiles:
         for ii in range(len(clipbinsfiles)):
-            #txtfiles.append(np.loadtxt(outbasenm+'%s_radar_samples.txt'%frequenciestomask[ii], delimiter = ':'))
             txtfile = np.loadtxt(clipbinsfiles[ii], delimiter = ':')
             if len(txtfile):
                 txtfile = np.atleast_2d(txtfile)
@@ -146,6 +136,7 @@ def zap_chans(full_channels_to_mask, old_zap_chans):
     Input: array of channels that need to be completely zapped.
            array of channels already detected by rfifind.
     Output: array of input channels combined.
+    No longer used here.
     """
     new_zap_chans = np.unique(np.append(old_zap_chans,full_channels_to_mask)).astype('int32') 
     return new_zap_chans
@@ -153,6 +144,7 @@ def zap_chans(full_channels_to_mask, old_zap_chans):
 def zap_chans_per_int(old_zap_chans_per_int, ints_to_mask, mask_chans_per_int):
     """
     intervals to mask correspond to respective radar_chans
+    Not used here.
     """
     new_zap_chans_per_int = old_zap_chans_per_int
     num_chans_per_int = np.array((), dtype='int32')
@@ -171,6 +163,7 @@ def zap_ints(full_ints_to_mask, old_zap_ints):
     Input: array of intervals that need to be completely zapped.
            array of intervals already detected by rfifind.
     Output: array of above intervals combined.
+    Not used here.
     """
     new_zap_ints = np.unique(np.append(old_zap_ints, full_ints_to_mask)).astype('int32')
     return new_zap_ints    
@@ -178,6 +171,7 @@ def zap_ints(full_ints_to_mask, old_zap_ints):
 def read_mask(old_mask):
     """
     Reads in relevant information from an rfifind.mask file.
+    No longer used here.
     """
     mask_zap_chans = np.array(list(old_mask.mask_zap_chans), dtype=np.int32)
     mask_zap_ints = old_mask.mask_zap_ints
@@ -188,6 +182,7 @@ def write_mask(old_mask, new_zap_chans, new_zap_ints, new_zap_chans_per_int,
                num_chans_per_int, outbasenm):
     """
     Writes a new .mask file in the same format as rfifind.mask.
+    No longer used here.
     """
     info_array = np.array((old_mask.time_sig, old_mask.freq_sig, old_mask.MJD, old_mask.dtint,
                            old_mask.lofreq, old_mask.df), dtype='float64')
@@ -229,12 +224,9 @@ def main():
     else:
         inffn = fn[:-4]+'.inf'
     inf = infodata.infodata(inffn)
-    # Read in the original rfifind.mask information.
-    old_mask = rfifind.rfifind(fn[:-5]+"_rfifind.mask")
-    #old_zap_chans, old_zap_ints, old_zap_chans_per_int = read_mask(old_mask)
     
     # Now make the timeseries only containing each of the radar signals individually.   
-    make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
+    make_timeseries(rawdatafile, args.frequenciestomask, args.bandwidth, 
                     args.nchannels, outbasenm)
     start = 0
     ints_with_rfi_to_mask = []
