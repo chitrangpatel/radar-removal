@@ -10,6 +10,7 @@ import find_radar_mod
 import rfifind
 import subprocess
 import glob
+import os
 
 def channels_to_mask(data, nchannels, frequencytomask, bandwidth):
     """
@@ -50,30 +51,41 @@ def write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm):
     new_zap_chans_per_int = np.array(())
     num_chans_per_int = np.array(())
     write_mask(old_mask, new_zap_chans, new_zap_ints, new_zap_chans_per_int, num_chans_per_int, outbasenm)
-     
+
+def make_rfifind_mask(lo_chan, lo_rad_chan, hi_chan, hi_rad_chan, frequency_to_mask, outbasenm):
+    """
+    Run rfifind to generate a mask file to get the timeseries of the channels only containing the radar.
+    This way we can extract narrow band radar signals which are not very bright.
+    """
+    subprocess.call(['rfifind', '-chanfrac', '1.0', '-intfrac', '1.0', '-zapchan', '%i:%i,%i:%i'%(lo_chan,lo_rad_chan,hi_rad_chan,hi_chan), '-o', '%s%s_new'%(outbasenm,frequency_to_mask), '%s.fits'%outbasenm])
+         
 def make_timeseries(data, old_mask, frequenciestomask, bandwidth, nchannels, outbasenm):
     """
     Generates a timeseries of specific channels using Presto's prepdata.
     """
+    print outbasenm
     for ii in range(len(frequenciestomask)):
         channelstomask = channels_to_mask(data, nchannels, 
                          float(frequenciestomask[ii]), float(bandwidth[ii]))
+        make_rfifind_mask(0, np.min(channelstomask)-1, nchannels, np.max(channelstomask)+1, frequenciestomask[ii], outbasenm)
         new_zap_chans = chans_for_timeseries(channelstomask, nchannels) 
-        write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm+frequenciestomask[ii])
-        subprocess.call(['cp', '%s_rfifind.bytemask'%outbasenm, '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['cp', '%s_rfifind.ps'%outbasenm, '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['cp', '%s_rfifind.inf'%outbasenm, '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['cp', '%s_rfifind.rfi'%outbasenm, '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['cp', '%s_rfifind.stats'%outbasenm, '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['prepdata', '-nobary', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '%s.fits'%outbasenm])
-        subprocess.call(['rm', '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['rm', '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['rm', '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['rm', '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
-        subprocess.call(['rm', '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
+        #write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm+frequenciestomask[ii])
+        #subprocess.call(['cp', '%s_rfifind.bytemask'%outbasenm, '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['cp', '%s_rfifind.ps'%outbasenm, '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['cp', '%s_rfifind.inf'%outbasenm, '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['cp', '%s_rfifind.rfi'%outbasenm, '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['cp', '%s_rfifind.stats'%outbasenm, '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
+        print "generating time series: %s: %s"%(frequenciestomask[ii], outbasenm)
+        subprocess.call(['prepdata', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '-psrfits', '%s.fits'%outbasenm])
+        print "time series generated : %s: %s"%(frequenciestomask[ii], outbasenm)
+        #subprocess.call(['rm', '%s%s_new_rfifind.bytemask'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['rm', '%s%s_new_rfifind.ps'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['rm', '%s%s_new_rfifind.inf'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['rm', '%s%s_new_rfifind.rfi'%(outbasenm,frequenciestomask[ii])])
+        #subprocess.call(['rm', '%s%s_new_rfifind.stats'%(outbasenm,frequenciestomask[ii])])
     
 def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, threshold, 
-                    winlen, nchannels, start, old_mask, outbasenm):
+                    winlen, nchannels, start, outbasenm):
     """
     Identifies the intervals contaminated by radar based on the original radar removal algorithm. 
     """
@@ -81,6 +93,8 @@ def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, thr
     for ii in range(len(frequenciestomask)):
         print 'radar frequency: %s MHz'%frequenciestomask[ii]
         rad_data = np.fromfile(outbasenm+'%s.dat'%frequenciestomask[ii], dtype = np.float32, count=-1)
+        print 'failed beam : %s'%outbasenm
+        print len(rad_data)
         maxpows, medpows = find_radar_mod.compute_maxpows(rad_data, inf, float(winlen[ii]))
         rad_data, mask, blocks_to_mask = find_radar_mod.apply_mask_to_maxpows(rad_data, 
                                                 maxpows, medpows, float(threshold[ii]))
@@ -95,33 +109,36 @@ def merge_intervals(masked_intervals, outbasenm):
         for ii in range(len(clipbinsfiles)):
             #txtfiles.append(np.loadtxt(outbasenm+'%s_radar_samples.txt'%frequenciestomask[ii], delimiter = ':'))
             txtfile = np.loadtxt(clipbinsfiles[ii], delimiter = ':')
-            txtfile = np.atleast_2d(txtfile)
-            print np.shape(txtfile)
             if len(txtfile):
+                txtfile = np.atleast_2d(txtfile)
                 txtfiles.append(txtfile)
-    if len(txtfiles)>1:
-        clipbinsfile = np.concatenate((txtfiles), axis=0)
+    if len(txtfiles):
+        if len(txtfiles)>1:
+            print "file : %s"%outbasenm
+            clipbinsfile = np.concatenate((txtfiles), axis=0)
+        elif len(txtfiles)==1:
+            clipbinsfile = np.asarray(txtfiles[0])
+        if len(clipbinsfile):
+            count = 0
+            order = np.lexsort(clipbinsfile.T)
+            clipbinsfile = clipbinsfile[order]
+            indices=[]
+            for i in range(len(clipbinsfile)-1):
+                if (clipbinsfile[i+1][0]==clipbinsfile[i][0]) and (clipbinsfile[i+1][1]==clipbinsfile[i+1][1]):
+                    indices.append(i)
+            clipbinsfile = np.delete(clipbinsfile, np.asarray(indices), axis=0)
+            for i in range(len(clipbinsfile)):
+                count += clipbinsfile[i][1]-clipbinsfile[i][0]
+            print 'number of masked intervals: %s'%len(clipbinsfile)
+            with open(outbasenm+"_merged_radar_samples.txt",'w') as ff:
+                ff.write("# Samples containing the radar\n")
+                ff.write("# Intervals are samples to remove 'start:stop' (inclusive!)\n")
+                ff.write("# First sample number is 0\n")
+                ff.write("# Number of data samples to remove: %d of %d (%.2g %%)\n" %
+                         (count, len(masked_intervals[1]), 100.0*count/len(masked_intervals[1])))
+                np.savetxt(ff, clipbinsfile, "%d", delimiter=':')
     else:
-        clipbinsfile = np.asarray(txtfiles[0])
-    count = 0
-    if len(clipbinsfile):
-        order = np.lexsort(clipbinsfile.T)
-        clipbinsfile = clipbinsfile[order]
-        indices=[]
-        for i in range(len(clipbinsfile)-1):
-            if (clipbinsfile[i+1][0]==clipbinsfile[i][0]) and (clipbinsfile[i+1][1]==clipbinsfile[i+1][1]):
-                indices.append(i)
-        clipbinsfile = np.delete(clipbinsfile, np.asarray(indices), axis=0)
-        for i in range(len(clipbinsfile)):
-            count += clipbinsfile[i][1]-clipbinsfile[i][0]
-        print 'number of masked intervals: %s'%len(clipbinsfile)
-    with open(outbasenm+"_merged_radar_samples.txt",'w') as ff:
-        ff.write("# Samples containing the radar\n")
-        ff.write("# Intervals are samples to remove 'start:stop' (inclusive!)\n")
-        ff.write("# First sample number is 0\n")
-        ff.write("# Number of data samples to remove: %d of %d (%.2g %%)\n" %
-                 (count, len(masked_intervals[1]), 100.0*count/len(masked_intervals[1])))
-        np.savetxt(ff, clipbinsfile, "%d", delimiter=':')
+        subprocess.call(['cp', '%s'%clipbinsfiles[0], '%s_merged_radar_samples.txt'%outbasenm])
 
 def zap_chans(full_channels_to_mask, old_zap_chans):
     """
@@ -214,7 +231,7 @@ def main():
     inf = infodata.infodata(inffn)
     # Read in the original rfifind.mask information.
     old_mask = rfifind.rfifind(fn[:-5]+"_rfifind.mask")
-    old_zap_chans, old_zap_ints, old_zap_chans_per_int = read_mask(old_mask)
+    #old_zap_chans, old_zap_ints, old_zap_chans_per_int = read_mask(old_mask)
     
     # Now make the timeseries only containing each of the radar signals individually.   
     make_timeseries(rawdatafile, old_mask, args.frequenciestomask, args.bandwidth, 
@@ -225,7 +242,7 @@ def main():
     # Identify intervals contaminated by radar using the original radar removal algorithm.
     masked_intervals = chans_per_int_with_radar(rawdatafile,inf, 
                                       args.frequenciestomask, args.bandwidth, args.threshold, 
-                                      args.winlen, args.nchannels, start, old_mask, outbasenm)
+                                      args.winlen, args.nchannels, start, outbasenm)
     merge_intervals(masked_intervals, outbasenm)
 
 if __name__ == '__main__':
