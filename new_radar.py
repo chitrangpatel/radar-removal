@@ -2,15 +2,12 @@
 
 import numpy as np
 import argparse
-import sys
 import infodata
 from pypulsar.formats import psrfits
 from pypulsar.formats import filterbank
 import find_radar_mod
-import rfifind
 import subprocess
 import glob
-import os
 
 def channels_to_mask(data, nchannels, frequencytomask, bandwidth):
     """
@@ -31,28 +28,6 @@ def channels_to_mask(data, nchannels, frequencytomask, bandwidth):
     else:
         channelstomask = np.append(channelstomask, np.linspace(channel-25, channel+25, 41))
     return np.unique(channelstomask.astype('int'))        
-
-def chans_for_timeseries(channelstomask, nchannels):
-    """
-    Outputs an array of channels not containing the radar. 
-    These channels will be masked out.
-    No longer used here.
-    """
-    nchans = range(0, nchannels)
-    for chan in channelstomask:
-        nchans.remove(chan)   
-    return np.array(nchans).astype('int32')
-
-def write_mask_for_timeseries(old_mask, new_zap_chans, outbasenm):
-    """
-    Writes a mask file to get the timeseries of only the channels containing the radar.
-    This way we can extract narrow band radar signals which are not very bright.
-    No longer used here.
-    """
-    new_zap_ints = np.array(())
-    new_zap_chans_per_int = np.array(())
-    num_chans_per_int = np.array(())
-    write_mask(old_mask, new_zap_chans, new_zap_ints, new_zap_chans_per_int, num_chans_per_int, outbasenm)
 
 def make_rfifind_mask(lo_chan, lo_rad_chan, hi_chan, hi_rad_chan, frequency_to_mask, outbasenm):
     """
@@ -126,72 +101,6 @@ def merge_intervals(masked_intervals, outbasenm):
     else:
         subprocess.call(['cp', '%s'%clipbinsfiles[0], '%s_merged_radar_samples.txt'%outbasenm])
 
-def zap_chans(full_channels_to_mask, old_zap_chans):
-    """
-    Zaps entire channels.
-    Input: array of channels that need to be completely zapped.
-           array of channels already detected by rfifind.
-    Output: array of input channels combined.
-    No longer used here.
-    """
-    new_zap_chans = np.unique(np.append(old_zap_chans,full_channels_to_mask)).astype('int32') 
-    return new_zap_chans
-
-def zap_chans_per_int(old_zap_chans_per_int, ints_to_mask, mask_chans_per_int):
-    """
-    intervals to mask correspond to respective radar_chans
-    Not used here.
-    """
-    new_zap_chans_per_int = old_zap_chans_per_int
-    num_chans_per_int = np.array((), dtype='int32')
-    j=0
-    for ii in ints_to_mask:
-        new_zap_chans_per_int[ii] = np.unique(np.append(new_zap_chans_per_int[ii], 
-                                              mask_chans_per_int[j])).astype('int32')
-        j+=1
-    for jj in new_zap_chans_per_int:
-        num_chans_per_int = np.append(num_chans_per_int, len(jj)).astype('int32')
-    return new_zap_chans_per_int, num_chans_per_int
-
-def zap_ints(full_ints_to_mask, old_zap_ints):
-    """
-    Zaps entire intervals.
-    Input: array of intervals that need to be completely zapped.
-           array of intervals already detected by rfifind.
-    Output: array of above intervals combined.
-    Not used here.
-    """
-    new_zap_ints = np.unique(np.append(old_zap_ints, full_ints_to_mask)).astype('int32')
-    return new_zap_ints    
-        
-def read_mask(old_mask):
-    """
-    Reads in relevant information from an rfifind.mask file.
-    No longer used here.
-    """
-    mask_zap_chans = np.array(list(old_mask.mask_zap_chans), dtype=np.int32)
-    mask_zap_ints = old_mask.mask_zap_ints
-    mask_zap_chans_per_int = old_mask.mask_zap_chans_per_int
-    return mask_zap_chans, mask_zap_ints, mask_zap_chans_per_int
-
-def write_mask(old_mask, new_zap_chans, new_zap_ints, new_zap_chans_per_int, 
-               num_chans_per_int, outbasenm):
-    """
-    Writes a new .mask file in the same format as rfifind.mask.
-    No longer used here.
-    """
-    info_array = np.array((old_mask.time_sig, old_mask.freq_sig, old_mask.MJD, old_mask.dtint,
-                           old_mask.lofreq, old_mask.df), dtype='float64')
-    with open(outbasenm+"_new_rfifind.mask",'wb') as f:
-        info_array.tofile(f)
-        np.array((old_mask.nchan, old_mask.nint, old_mask.ptsperint)).tofile(f)
-        np.array((len(new_zap_chans)), dtype='int32').tofile(f)
-        new_zap_chans.tofile(f)
-        np.array((len(new_zap_ints)), dtype='int32').tofile(f)
-        new_zap_ints.tofile(f)
-        num_chans_per_int.tofile(f)
-        for ii in new_zap_chans_per_int:
-            ii.tofile(f)
 
 def main():
     fn = args.infn
@@ -216,7 +125,7 @@ def main():
                           are supported.)")
     #Read data
     if filetype == 'psrfits':
-        inffn = fn[:-5]+'.inf'
+        inffn = fn[:-5]+'_rfifind.inf'
     else:
         inffn = fn[:-4]+'.inf'
     inf = infodata.infodata(inffn)
