@@ -70,7 +70,6 @@ def make_timeseries(data, frequenciestomask, bandwidth, nchannels, outbasenm):
         channelstomask = channels_to_mask(data, nchannels, 
                          float(frequenciestomask[ii]), float(bandwidth[ii]))
         make_rfifind_mask(0, np.min(channelstomask)-1, nchannels, np.max(channelstomask)+1, frequenciestomask[ii], outbasenm)
-        new_zap_chans = chans_for_timeseries(channelstomask, nchannels) 
         print "generating time series: %s: %s"%(frequenciestomask[ii], outbasenm)
         subprocess.call(['prepdata', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '-psrfits', '%s.fits'%outbasenm])
         print "time series generated : %s: %s"%(frequenciestomask[ii], outbasenm)
@@ -82,13 +81,10 @@ def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, thr
     """
     masked_intervals = [] 
     for ii in range(len(frequenciestomask)):
-        print 'radar frequency: %s MHz'%frequenciestomask[ii]
         rad_data = np.fromfile(outbasenm+'%s.dat'%frequenciestomask[ii], dtype = np.float32, count=-1)
-        print 'failed beam : %s'%outbasenm
-        print len(rad_data)
-        maxpows, medpows = find_radar_mod.compute_maxpows(rad_data, inf, float(winlen[ii]))
-        rad_data, mask, blocks_to_mask = find_radar_mod.apply_mask_to_maxpows(rad_data, 
-                                                maxpows, medpows, float(threshold[ii]))
+        maxpows = find_radar_mod.compute_maxpows(rad_data, inf, float(winlen[ii]))
+        rad_data = find_radar_mod.apply_mask_to_maxpows(rad_data, 
+                                                maxpows, float(threshold[ii]))
         masked_intervals.append(find_radar_mod.write_radar_intervals(rad_data, outbasenm
                                                             +'%s'%frequenciestomask[ii]))
     return masked_intervals
@@ -220,7 +216,7 @@ def main():
                           are supported.)")
     #Read data
     if filetype == 'psrfits':
-        inffn = fn[:-5]+'_rfifind.inf'
+        inffn = fn[:-5]+'.inf'
     else:
         inffn = fn[:-4]+'.inf'
     inf = infodata.infodata(inffn)
@@ -228,10 +224,8 @@ def main():
     # Now make the timeseries only containing each of the radar signals individually.   
     make_timeseries(rawdatafile, args.frequenciestomask, args.bandwidth, 
                     args.nchannels, outbasenm)
-    start = 0
-    ints_with_rfi_to_mask = []
-    mask_zap_chans_per_int = []
     # Identify intervals contaminated by radar using the original radar removal algorithm.
+    start = 0
     masked_intervals = chans_per_int_with_radar(rawdatafile,inf, 
                                       args.frequenciestomask, args.bandwidth, args.threshold, 
                                       args.winlen, args.nchannels, start, outbasenm)

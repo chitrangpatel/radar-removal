@@ -19,19 +19,17 @@ def compute_maxpows(data, inf, winlen):
 
     # Compute maximum Fourier power for each block of time series data
     maxpows = np.zeros(nblocks)
-    medpows = np.zeros(nblocks)
     for iblock in xrange(nblocks):
         istart = int(np.round(iblock*nbin))
         iend = int(np.round((iblock+1)*nbin))
         powers = np.abs(np.fft.rfft(data[istart:iend]))**2
         maxpows[iblock] = np.max(powers[1:])
-        medpows[iblock] = np.median(powers[1:])
         imax = np.argmax(powers[1:])
     maxpows[-1] = np.median(maxpows[:-1])
     # Scale the maximum powers
     maxpows /= np.median(maxpows)
     #maxpows /=np.median(powers)
-    return maxpows, medpows
+    return maxpows
 
 def compute_minpows(data, inf, winlen):
     nblocks = int(np.ceil(inf.N*inf.dt/winlen))
@@ -67,15 +65,13 @@ def apply_mask_to_maxpows(data, maxpows, medpows, thresh):
     # Generate a mask based on block-wise Fourier power
     # being larger than a threshold
     mask = np.zeros(len(data), dtype=bool)
-    block_to_mask = []
     for iblock in xrange(len(maxpows)):
         istart = int(np.round(iblock*nbin))
         iend = int(np.round((iblock+1)*nbin))
         if maxpows[iblock] > thresh:
             mask[istart:iend] = 1
-            block_to_mask.append(iblock)
     masked = np.ma.masked_array(data, mask=mask, fill_value=np.median(data))
-    return masked, mask, block_to_mask
+    return masked 
 
 def apply_mask_to_minpows(data, minpows, medpows, thresh):
     nblocks = len(minpows)
@@ -216,8 +212,8 @@ def main():
 
     rawdata, inf = read_datfile(fn)
 
-    maxpows, medpows = compute_maxpows(rawdata, inf, args.winlen)
-    data, mask, blocks_to_mask = apply_mask_to_maxpows(rawdata, maxpows, medpows, args.maxthresh)
+    maxpows = compute_maxpows(rawdata, inf, args.winlen)
+    data = apply_mask_to_maxpows(rawdata, maxpows, args.maxthresh)
     
     minpows, medpows = compute_minpows(data, inf, args.winlen)
     data, mask, blocks_to_mask = apply_mask_to_minpows(data, minpows, medpows, args.minthresh)
