@@ -58,7 +58,7 @@ def compute_minpows(data, inf, winlen):
     #return minpows, medpows
     return variance, medpows
 
-def apply_mask_to_maxpows(data, maxpows, medpows, thresh):
+def apply_mask_to_maxpows(data, maxpows, thresh):
     nblocks = len(maxpows)
     nbin = len(data)/float(nblocks)
 
@@ -217,7 +217,6 @@ def main():
     
     minpows, medpows = compute_minpows(data, inf, args.winlen)
     data, mask, blocks_to_mask = apply_mask_to_minpows(data, minpows, medpows, args.minthresh)
-    print minpows
     print "Frac. of data masked: %.2f %%" % ((len(data)-data.count())/float(len(data))*100), 
 
     # Write out masked file

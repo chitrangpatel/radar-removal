@@ -3,13 +3,11 @@
 import numpy as np
 import argparse
 import infodata
-from pypulsar.formats import psrfits
-from pypulsar.formats import filterbank
 import find_radar_mod
 import subprocess
 import glob
 
-def channels_to_mask(data, nchannels, frequencytomask, bandwidth):
+def channels_to_mask(inf, nchannels, frequencytomask, bandwidth):
     """
     Finds out which channels are affected by radar based on the given
     radar radio frequency and the bandwidth of the radar. 
@@ -18,9 +16,9 @@ def channels_to_mask(data, nchannels, frequencytomask, bandwidth):
            list [bandwidths]
     Output: Int Array of channels to mask.        
     """
-    lenchannel = (data.freqs.max()-data.freqs.min())/float(nchannels)
+    lenchannel = inf.chan_width*(inf.numchan/float(nchannels))
     channelstomask = np.array(())
-    channel = int((frequencytomask-data.freqs.min())/lenchannel)
+    channel = int((frequencytomask-inf.lofreq)/lenchannel)
     if (bandwidth != 0.0):
         channelsperbandwidth = int(bandwidth/lenchannel)+1
         channelstomask = np.append(channelstomask, np.linspace(channel-channelsperbandwidth/2, 
@@ -34,22 +32,22 @@ def make_rfifind_mask(lo_chan, lo_rad_chan, hi_chan, hi_rad_chan, frequency_to_m
     Run rfifind to generate a mask file to get the timeseries of the channels only containing the radar.
     This way we can extract narrow band radar signals which are not very bright.
     """
-    subprocess.call(['rfifind', '-chanfrac', '1.0', '-intfrac', '1.0', '-zapchan', '%i:%i,%i:%i'%(lo_chan,lo_rad_chan,hi_rad_chan,hi_chan), '-o', '%s%s_new'%(outbasenm,frequency_to_mask), '%s.fits'%outbasenm])
+    subprocess.call(['rfifind', '-psrfits', '-time', '2.0971519999999999', '-chanfrac', '1.0', '-intfrac', '1.0', '-zapchan', '%i:%i,%i:%i'%(lo_chan,lo_rad_chan,hi_rad_chan,hi_chan), '-o', '%s%s_new'%(outbasenm,frequency_to_mask), '%s.fits'%outbasenm])
          
-def make_timeseries(data, frequenciestomask, bandwidth, nchannels, outbasenm):
+def make_timeseries(inf, frequenciestomask, bandwidth, nchannels, outbasenm):
     """
     Generates a timeseries of specific channels using Presto's prepdata.
     """
     print outbasenm
     for ii in range(len(frequenciestomask)):
-        channelstomask = channels_to_mask(data, nchannels, 
+        channelstomask = channels_to_mask(inf, nchannels, 
                          float(frequenciestomask[ii]), float(bandwidth[ii]))
         make_rfifind_mask(0, np.min(channelstomask)-1, nchannels, np.max(channelstomask)+1, frequenciestomask[ii], outbasenm)
         print "generating time series: %s: %s"%(frequenciestomask[ii], outbasenm)
         subprocess.call(['prepdata', '-mask', '%s%s_new_rfifind.mask'%(outbasenm,frequenciestomask[ii]), '-o', '%s%s'%(outbasenm,frequenciestomask[ii]), '-psrfits', '%s.fits'%outbasenm])
         print "time series generated : %s: %s"%(frequenciestomask[ii], outbasenm)
     
-def chans_per_int_with_radar(rawdatafile, inf, frequenciestomask, bandwidth, threshold, 
+def chans_per_int_with_radar(inf, frequenciestomask, bandwidth, threshold, 
                     winlen, nchannels, start, outbasenm):
     """
     Identifies the intervals contaminated by radar based on the original radar removal algorithm. 
@@ -107,14 +105,12 @@ def main():
     # Read in the raw data.(Probably not necessary anymore. Look into this)
     if fn.endswith(".fil"):
         filetype = "filterbank"
-        rawdatafile = filterbank.filterbank(fn)
         if not args.outbasenm:
             outbasenm = fn[:-4]
         else:
             outbasenm = args.outbasenm
     elif fn.endswith(".fits"):
         filetype = "psrfits"
-        rawdatafile = psrfits.PsrfitsFile(fn)
         if not args.outbasenm:
             outbasenm = fn[:-5]
         else:
@@ -125,19 +121,19 @@ def main():
                           are supported.)")
     #Read data
     if filetype == 'psrfits':
-        inffn = fn[:-5]+'_rfifind.inf'
+        inffn = fn[:-5]+'_nomask_DM0.00.inf'
     else:
-        inffn = fn[:-4]+'.inf'
+        inffn = fn[:-4]+'_nomask_DM0.00.inf'
     inf = infodata.infodata(inffn)
     
     # Now make the timeseries only containing each of the radar signals individually.   
-    make_timeseries(rawdatafile, args.frequenciestomask, args.bandwidth, 
+    make_timeseries(inf, args.frequenciestomask, args.bandwidth, 
                     args.nchannels, outbasenm)
     # Identify intervals contaminated by radar using the original radar removal algorithm.
     start = 0
-    masked_intervals = chans_per_int_with_radar(rawdatafile,inf, 
-                                      args.frequenciestomask, args.bandwidth, args.threshold, 
-                                      args.winlen, args.nchannels, start, outbasenm)
+    masked_intervals = chans_per_int_with_radar(inf, args.frequenciestomask, 
+                                                args.bandwidth, args.threshold, 
+                                                args.winlen, args.nchannels, start, outbasenm)
     merge_intervals(masked_intervals, outbasenm)
 
 if __name__ == '__main__':
